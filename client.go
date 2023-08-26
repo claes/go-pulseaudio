@@ -92,6 +92,44 @@ func NewClient(addressArr ...string) (*Client, error) {
 	return c, nil
 }
 
+func NewClientTmp(addressArr ...string) (*Client, error) {
+	if len(addressArr) < 1 {
+		rtp, err := RuntimePath("native")
+		if err != nil {
+			return nil, err
+		}
+		addressArr = []string{rtp}
+	}
+
+	conn, err := net.Dial("tcp", addressArr[0])
+	if err != nil {
+		return nil, err
+	}
+
+	c := &Client{
+		conn:      conn,
+		packets:   make(chan packet),
+		updates:   make(chan struct{}, 1),
+		connected: true,
+	}
+
+	go c.processPackets()
+
+	err = c.auth()
+	if err != nil {
+		c.Close()
+		return nil, err
+	}
+
+	err = c.setName()
+	if err != nil {
+		c.Close()
+		return nil, err
+	}
+
+	return c, nil
+}
+
 const frameSizeMaxAllow = 1024 * 1024 * 16
 
 func (c *Client) processPackets() {
@@ -396,7 +434,7 @@ func cookiePath() (string, error) {
 
 type Device interface {
 	SetVolume(volume float32) error
-	SetMute (b bool) error
+	SetMute(b bool) error
 	ToggleMute() error
 	IsMute() bool
 	GetVolume() float32
